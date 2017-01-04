@@ -77,9 +77,11 @@ SHUTTLE_LEFT = PORT_1
 SHUTTLE_RIGHT = PORT_2
 
 SHUTTLE_POWER = 200
+WARP_POWER = 100
 BEATER_POWER = 200
 
-BEATER_ANGLE = 300
+WARP_ANGLE = 135
+BEATER_ANGLE = 330
 
 def pass_shuttle_left():
     BrickPi.MotorSpeed[SHUTTLE] = SHUTTLE_POWER
@@ -94,6 +96,25 @@ def pass_shuttle_right():
         BrickPiUpdateValues()
         time.sleep(.01)
     BrickPi.MotorSpeed[SHUTTLE] = 0
+    
+warp_init = None
+def warp_up():
+    global warp_init
+    
+    if warp_init is None:
+        BrickPiUpdateValues()
+        warp_init = [BrickPi.Encoder[WARP1] / 2, BrickPi.Encoder[WARP2] / 2]
+        
+    motorRotateDegreesPID([WARP_POWER, WARP_POWER], [warp_init[0] + WARP_ANGLE, warp_init[1] + WARP_ANGLE], [WARP1, WARP2],
+                          k_p=10, k_i=0.1, k_d=0.15, max_errors=[3, 3])
+
+def warp_down():
+    if warp_init is None:
+        raise Exception("warp_up should happen before warp_down")
+        
+    motorRotateDegreesPID([WARP_POWER, WARP_POWER], [warp_init[0], warp_init[1]], [WARP1, WARP2],
+                          k_p=10, k_i=0.1, k_d=0.15, max_errors=[3, 3])
+    
 
 beater_init = None
 def move_beater():
@@ -107,6 +128,10 @@ def move_beater():
     time.sleep(0.2)
     motorRotateDegreesPID([BEATER_POWER], [beater_init], [BEATER], k_p=1, k_i=0.1, k_d=0.2)
 
+# Startup configuration:
+# * Front warp down
+# * Shuttle on right
+# * Beater fully back with slight tension
 if __name__ == "__main__":
     BrickPiSetup()  # setup the serial port for communication
     
@@ -121,8 +146,16 @@ if __name__ == "__main__":
     BrickPiSetupSensors()   #Send the properties of sensors to BrickPi
 
     while True:
+        print("warp up")
+        warp_up()
+        print("shuttle left")
         pass_shuttle_left()
+        print("beater")
         move_beater()
+        print("warp down")
+        warp_down()
+        print("shuttle right")
         pass_shuttle_right()
+        print("beater")
         move_beater()
         
